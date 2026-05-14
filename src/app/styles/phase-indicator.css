@@ -1,0 +1,65 @@
+.phase-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  max-height: 4rem;
+  overflow: hidden;
+  transition: opacity 0.5s ease, transform 0.5s ease, max-height 0.5s ease, margin-bottom 0.5s ease;
+}
+
+.phase-indicator--done {
+  opacity: 0;
+  transform: translateY(-4px);
+  max-height: 0;
+  margin-bottom: 0;
+  pointer-events: none;
+}
+
+.phase-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 0.42;
+}
+
+.phase-step.active {
+  color: var(--accent);
+  opacity: 1;
+  text-shadow: 0 0 12px rgba(119, 170, 170, 0.35);
+}
+
+.phase-step.completed {
+  color: var(--text-muted);
+  opacity: 0.55;
+}
+
+.phase-step-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2rem;
+  height: 1.2rem;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  line-height: 1;
+}
+
+.phase-step:not(:last-child)::after {
+  content: "/";
+  margin-left: 0.4rem;
+  color: var(--border-strong);
+}
+
+@media (max-width: 520px) {
+  .phase-indicator {
+    gap: 0.45rem;
+    font-size: 0.66rem;
+  }
+}

@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.is-it-blocked.rule=Host(`bloqueado.aragort.com`)"
+      - "traefik.http.routers.is-it-blocked.entrypoints=websecure"
+      - "traefik.http.routers.is-it-blocked.tls=true"
+      - "traefik.http.services.is-it-blocked.loadbalancer.server.port=3000"
+      - "traefik.docker.network=dokploy-network"
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
