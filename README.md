@@ -64,7 +64,6 @@ The diagnosis engine is rule-based and auditable. There is no LLM in the runtime
 
 - The first check probes only the requested domain from the browser.
 - Comparison probes against known restricted targets can auto-trigger when a known-blocked domain is reachable from the browser, which helps detect VPN/DNS bypass cases.
-- User reports require consent and are stored anonymously in JSONL.
 - The server-side probe is only meaningful once deployed outside the user's ISP network.
 
 ## Deployment
