@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { lookupDomain } from "@/services/csv-evidence";
+import { validateTargetInput } from "@/domain/target-validation";
 import { getComparisonTargets } from "@/services/probe-targets";
 
 export async function GET(request: NextRequest) {
@@ -12,13 +13,16 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const normalized = domain
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/\/.*$/, "")
-    .replace(/^www\./, "");
+  const validation = validateTargetInput(domain);
 
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: "Invalid URL or domain" },
+      { status: 400 }
+    );
+  }
+
+  const normalized = validation.domain;
   const csvMatch = lookupDomain(normalized);
   const category = csvMatch?.category ?? null;
   const targets = getComparisonTargets(normalized, category ?? undefined);

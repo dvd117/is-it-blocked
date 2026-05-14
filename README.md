@@ -4,7 +4,7 @@ Censorship-evidence aggregator for Venezuelan internet users. Enter a domain and
 
 This tool does **not** prove censorship. It shows why a conclusion is reasonable and keeps the language deliberately cautious.
 
-Temporary deployment URL: [`https://bloqueado.aragort.com`](https://bloqueado.aragort.com)
+Deployment URL: [`https://bloqueado.aragort.com`](https://bloqueado.aragort.com)
 
 ## Quick start
 
@@ -76,4 +76,4 @@ npm run build
 docker build -t is-it-blocked .
 ```
 
-Temporary production target: [`https://bloqueado.aragort.com`](https://bloqueado.aragort.com).
+Production target: [`https://bloqueado.aragort.com`](https://bloqueado.aragort.com).

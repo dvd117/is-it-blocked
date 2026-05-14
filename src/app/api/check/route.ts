@@ -4,6 +4,7 @@ import { queryOoni } from "@/services/ooni-client";
 import { getComparisonTargets } from "@/services/probe-targets";
 import { probeDomain } from "@/services/server-probe";
 import { diagnose } from "@/domain/diagnosis";
+import { validateTargetInput } from "@/domain/target-validation";
 import type { CheckResponse, BrowserSignal, ComparisonEvidence } from "@/domain/types";
 import type { Lang } from "@/i18n/messages";
 
@@ -15,15 +16,6 @@ const VALID_BROWSER_SIGNALS: BrowserSignal[] = [
   "timeout",
   "inconclusive",
 ];
-
-function normalizeDomain(input: string): string {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, "")
-    .replace(/\/.*$/, "")
-    .replace(/^www\./, "");
-}
 
 function parseComparisonCount(value: string | null): number | null {
   if (value === null) return null;
@@ -41,14 +33,16 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const domain = normalizeDomain(url);
+  const validation = validateTargetInput(url);
 
-  if (!domain || domain.includes(" ")) {
+  if (!validation.valid) {
     return NextResponse.json(
       { error: "Invalid URL or domain" },
       { status: 400 }
     );
   }
+
+  const domain = validation.domain;
 
   const rawLang = request.nextUrl.searchParams.get("lang");
   const lang = rawLang && VALID_LANGS.includes(rawLang as Lang) ? (rawLang as Lang) : "en";
