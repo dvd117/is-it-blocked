@@ -24,6 +24,7 @@ const expectedKeys = [
   "search.placeholder",
   "search.button",
   "search.loading",
+  "search.invalid",
   "phase.server",
   "phase.browser",
   "phase.done",

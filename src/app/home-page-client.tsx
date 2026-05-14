@@ -16,6 +16,7 @@ import { probeMultiple } from "@/features/check/browser-probe";
 import { runCheck } from "@/features/check/check-workflow";
 import { shouldRunComparisonProbe } from "@/features/check/comparison-consent";
 import { initialPageState, type PageState, type RichComparisonTarget } from "@/features/check/types";
+import { validateTargetInput } from "@/domain/target-validation";
 import { useT } from "@/i18n/context";
 import { APP_VERSION } from "@/config/app-version";
 import type { BrowserSignal, CheckResponse } from "@/domain/types";
@@ -105,6 +106,12 @@ export default function HomePage() {
     event.preventDefault();
     const input = query.trim();
     if (!input) return;
+
+    const validation = validateTargetInput(input);
+    if (!validation.valid) {
+      setState({ ...initialPageState, error: t("search.invalid") });
+      return;
+    }
 
     abortRef.current?.abort();
     const abort = new AbortController();
