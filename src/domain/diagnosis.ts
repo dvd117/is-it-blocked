@@ -29,7 +29,7 @@ function formatRestrictionText(value: string, lang: Lang): string {
   return cleanRestrictionText(value);
 }
 
-interface DiagnosisInput {
+export interface DiagnosisInput {
   csv: CsvEvidence | null;
   ooni: OoniEvidence | null;
   serverProbe: ServerProbeResult;

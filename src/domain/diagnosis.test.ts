@@ -102,6 +102,43 @@ test("diagnose keeps VPN and DNS comparison warning in Spanish", () => {
   assert.doesNotMatch(diagnosis.reasoning, /Known-restricted|reachable from your network|alternative DNS/);
 });
 
+test("same evidence produces Spanish then English when lang toggles", () => {
+  const input = {
+    csv: csvEvidence,
+    ooni: ooniEvidence,
+    serverProbe: reachableServer,
+    browserSignal: "failed_signal" as const,
+  };
+
+  const es = diagnose(input, "es");
+  const en = diagnose(input, "en");
+
+  assert.equal(es.verdict, en.verdict);
+  assert.equal(es.confidence, en.confidence);
+  assert.match(es.reasoning, /La evidencia coincide/);
+  assert.match(en.reasoning, /The evidence is consistent/);
+  assert.match(es.signals.join(" "), /bloqueo DNS/);
+  assert.match(en.signals.join(" "), /DNS restriction/);
+});
+
+test("comparison counts switch language correctly", () => {
+  const input = {
+    csv: null,
+    ooni: null,
+    serverProbe: reachableServer,
+    browserSignal: "failed_signal" as const,
+    comparison: { totalProbed: 3, failedCount: 2, targets: [] },
+  };
+
+  const en = diagnose(input, "en");
+  const es = diagnose(input, "es");
+
+  assert.match(en.signals.join(" "), /2 of 3 known-restricted/);
+  assert.match(es.signals.join(" "), /2 de 3 sitios conocidos/);
+  assert.match(en.reasoning, /2 of 3 known-restricted/);
+  assert.match(es.reasoning, /2 de 3 sitios conocidos/);
+});
+
 test("diagnose keeps English copy by default for API compatibility", () => {
   const diagnosis = diagnose({
     csv: null,

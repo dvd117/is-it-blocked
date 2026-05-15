@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { SiteHeader } from "@/features/check/components/site-header";
 import { SearchForm } from "@/features/check/components/search-form";
 import {
@@ -17,9 +17,10 @@ import { runCheck } from "@/features/check/check-workflow";
 import { shouldRunComparisonProbe } from "@/features/check/comparison-consent";
 import { initialPageState, type PageState, type RichComparisonTarget } from "@/features/check/types";
 import { validateTargetInput } from "@/domain/target-validation";
+import { diagnose } from "@/domain/diagnosis";
 import { useT } from "@/i18n/context";
 import { APP_VERSION } from "@/config/app-version";
-import type { BrowserSignal, CheckResponse } from "@/domain/types";
+import type { BrowserSignal, CheckResponse, ComparisonEvidence } from "@/domain/types";
 
 export default function HomePage() {
   const { lang, t } = useT();
@@ -174,6 +175,25 @@ export default function HomePage() {
     finalDiagnosis,
     error,
   } = state;
+  const liveDiagnosis = useMemo(() => {
+    if (!result) return finalDiagnosis;
+    const comparison: ComparisonEvidence | null =
+      comparisonTotal !== null && comparisonFailed !== null
+        ? {
+            totalProbed: comparisonTotal,
+            failedCount: comparisonFailed,
+            targets: comparisonTargets.map((ct) => ({
+              domain: ct.domain,
+              blockedIspCount: ct.blockedIspCount,
+            })),
+          }
+        : null;
+    return diagnose(
+      { csv: result.csvEvidence, ooni: result.ooniEvidence, serverProbe: result.serverProbe, browserSignal, comparison },
+      lang,
+    );
+  }, [lang, result, browserSignal, comparisonTotal, comparisonFailed, comparisonTargets, finalDiagnosis]);
+
   const showCards = loading || result !== null;
   const domain = result?.normalizedDomain ?? "";
   const browserLoading = loading && (phase === "server" || phase === "browser");
@@ -191,7 +211,7 @@ export default function HomePage() {
           <>
             {phase && (loading || phase === "done") && <PhaseIndicator phase={phase} />}
             <div className="cards-grid">
-              <AssessmentCard diagnosis={finalDiagnosis} loading={loading} />
+              <AssessmentCard diagnosis={liveDiagnosis} loading={loading} />
               <BrowserCard
                 signal={browserSignal}
                 domain={domain}
