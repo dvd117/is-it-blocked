@@ -1,6 +1,7 @@
 services:
   app:
     build: .
+    restart: unless-stopped
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.is-it-blocked.rule=Host(`bloqueado.aragort.com`)"
