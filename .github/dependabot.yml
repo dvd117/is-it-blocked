@@ -38,3 +38,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+    # Majors here are the runtime, and dependabot offers "latest", not
+    # "supported". On 2026-09-20 it proposed node:22 -> node:25, CI went green,
+    # and node 25 had been EOL since 2026-06-01 — an unpatched runtime with no
+    # signal anywhere. Patch and minor bumps still flow; the major is a
+    # deliberate decision made against the Node release schedule.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
+
