@@ -7,7 +7,7 @@
   --border-strong: rgba(255, 255, 255, 0.14);
   --text-primary: #e0e0e0;
   --text-secondary: #888;
-  --text-muted: #555;
+  --text-muted: #808080;
   --accent: #7aa;
   --accent-strong: #8ee0d3;
   --surface-glow: rgba(92, 197, 180, 0.18);
@@ -37,7 +37,7 @@
   --border-strong: rgba(0,0,0,0.18);
   --text-primary: #1a1a1a;
   --text-secondary: #555;
-  --text-muted: #888;
+  --text-muted: #6a6a6a;
   --accent: #4a7a8a;
   --accent-strong: #216b73;
   --surface-glow: rgba(33, 107, 115, 0.12);

@@ -31,7 +31,9 @@ export function SearchForm({ query, loading, onQueryChange, onSubmit }: SearchFo
         </div>
       </div>
       <form className="search-form" onSubmit={onSubmit}>
+        <label htmlFor="url-input" className="sr-only">{t("search.placeholder")}</label>
         <input
+          id="url-input"
           className="search-input"
           type="text"
           value={query}

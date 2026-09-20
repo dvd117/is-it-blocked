@@ -41,6 +41,7 @@ export function SiteHeader() {
               type="button"
               aria-label={t(theme === "dark" ? "theme.light" : "theme.dark")}
               title={t(theme === "dark" ? "theme.light" : "theme.dark")}
+              aria-pressed={theme === "dark"}
               onClick={toggleTheme}
             >
               {theme === "dark" ? "☀" : "☾"}

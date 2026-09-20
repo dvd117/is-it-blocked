@@ -73,6 +73,7 @@ export default function NerdMode({ domain }: NerdModeProps) {
                 <button
                   className="nerd-mode-copy"
                   type="button"
+                  aria-label={copiedIndex === index ? t("nerd.copied") : t("nerd.copy")}
                   onClick={() => void copyCommand(command, index)}
                 >
                   {copiedIndex === index ? t("nerd.copied") : t("nerd.copy")}
