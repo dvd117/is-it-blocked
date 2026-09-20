@@ -20,7 +20,10 @@ const UNSTABLE_COMPARISON_DOMAINS = new Set([
   "mullvad.net",
 ]);
 
-const SERVICE_SUBDOMAIN_PREFIX = /^(api|abs|pbs|upload|video|mobile|m)\./;
+// Requires a further dot after the prefix so this matches a service SUBDOMAIN
+// (pbs.twimg.com) and not a registrable domain that happens to start with the
+// same label (pbs.org, the broadcaster).
+const SERVICE_SUBDOMAIN_PREFIX = /^(api|abs|pbs|upload|video|mobile|m)\..*\./;
 
 function isStableComparisonTarget(evidence: CsvEvidence): boolean {
   return !UNSTABLE_COMPARISON_DOMAINS.has(evidence.domain)
