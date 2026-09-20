@@ -121,6 +121,7 @@ export const ISP_NAMES = [
   "Netuno",
   "Airtek",
   "G-Network",
+  "Thundernet",
 ] as const;
 
 export type IspName = (typeof ISP_NAMES)[number];

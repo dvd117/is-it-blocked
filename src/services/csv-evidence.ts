@@ -1,16 +1,7 @@
 import { readFileSync } from "fs";
 import path from "path";
-import type { CsvEvidence } from "@/domain/types";
-
-const ISP_NAMES = [
-  "CANTV",
-  "Movistar",
-  "Digitel",
-  "Inter",
-  "Netuno",
-  "Airtek",
-  "G-Network",
-] as const;
+import { ISP_NAMES, type CsvEvidence } from "@/domain/types";
+import { isRestricted } from "@/domain/isp-status";
 
 function normalizeDomain(raw: string): string {
   return raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "").replace(/^www\./, "");
@@ -49,8 +40,18 @@ function parseCsvLine(line: string): string[] {
   return values.map((value) => value.trim());
 }
 
-function buildEvidence(row: string[]): CsvEvidence | null {
-  const [siteName, rawDomain, category, ...ispValues] = row;
+// Maps each ISP the app knows about to its column in this file, by header name.
+// VE Sin Filtro adds and reorders ISP columns between releases, so a positional
+// mapping silently misattributes results the first time that happens.
+function ispColumnIndexes(header: string[]): Map<string, number> {
+  const normalized = header.map((name) => name.trim().toLowerCase());
+  return new Map(
+    ISP_NAMES.map((isp) => [isp, normalized.indexOf(isp.toLowerCase())])
+  );
+}
+
+function buildEvidence(row: string[], ispColumns: Map<string, number>): CsvEvidence | null {
+  const [siteName, rawDomain, category] = row;
   const domain = normalizeDomain(rawDomain ?? "");
 
   if (!siteName || !domain || domain.includes("/")) {
@@ -61,11 +62,12 @@ function buildEvidence(row: string[]): CsvEvidence | null {
   const blockedOnIsps: string[] = [];
   const blockingMethods = new Set<string>();
 
-  ISP_NAMES.forEach((isp, index) => {
-    const result = ispValues[index]?.trim() || "ok";
+  ISP_NAMES.forEach((isp) => {
+    const column = ispColumns.get(isp) ?? -1;
+    const result = column === -1 ? "" : row[column]?.trim() ?? "";
     ispResults[isp] = result;
 
-    if (result.toLowerCase() !== "ok") {
+    if (isRestricted(result)) {
       blockedOnIsps.push(isp);
       blockingMethods.add(result);
     }
@@ -81,13 +83,18 @@ function buildEvidence(row: string[]): CsvEvidence | null {
   };
 }
 
-function loadEvidence(): CsvEvidence[] {
-  const csvPath = path.join(process.cwd(), "data", "blocking-data.csv");
-  const [, ...rows] = readFileSync(csvPath, "utf8").trim().split(/\r?\n/);
+export function parseCsv(text: string): CsvEvidence[] {
+  const [headerLine, ...rows] = text.trim().split(/\r?\n/);
+  const ispColumns = ispColumnIndexes(parseCsvLine(headerLine ?? ""));
 
   return rows
-    .map((line) => buildEvidence(parseCsvLine(line)))
+    .map((line) => buildEvidence(parseCsvLine(line), ispColumns))
     .filter((evidence): evidence is CsvEvidence => evidence !== null);
+}
+
+function loadEvidence(): CsvEvidence[] {
+  const csvPath = path.join(process.cwd(), "data", "blocking-data.csv");
+  return parseCsv(readFileSync(csvPath, "utf8"));
 }
 
 const evidenceRows = loadEvidence();

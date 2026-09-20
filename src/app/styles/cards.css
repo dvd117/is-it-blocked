@@ -216,6 +216,10 @@
   color: var(--verdict-red);
 }
 
+.isp-no-data {
+  color: var(--text-muted);
+}
+
 .isp-count {
   font-family: var(--font-mono);
   font-size: 0.8rem;

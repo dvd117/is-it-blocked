@@ -6,7 +6,8 @@ import type {
   OoniEvidence,
   ServerProbeResult,
 } from "@/domain/types";
-import { CATEGORY_LABELS } from "@/domain/types";
+import { CATEGORY_LABELS, ISP_NAMES } from "@/domain/types";
+import { ispStatus } from "@/domain/isp-status";
 import { useT } from "@/i18n/context";
 import type { Lang } from "@/i18n/messages";
 import type { ComparisonResult, RichComparisonTarget } from "../types";
@@ -22,8 +23,18 @@ function formatDate(iso: string | null, lang: Lang): string {
 const VE_SIN_FILTRO_SOURCE_URL = "https://bloqueos.vesinfiltro.org/";
 
 function displayStatus(result: string, lang: Lang): string {
-  if (result.toLowerCase() === "ok") return "ok";
+  const status = ispStatus(result);
+  if (status === "ok") return "ok";
+  if (status === "unblocked") return lang === "es" ? "desbloqueado" : "unblocked";
+  if (status === "no_data") return lang === "es" ? "sin datos" : "no data";
   return lang === "es" ? "restringido" : "restricted";
+}
+
+function statusClass(result: string): string {
+  const status = ispStatus(result);
+  if (status === "restricted") return "isp-restricted";
+  if (status === "no_data") return "isp-no-data";
+  return "isp-ok";
 }
 
 function verdict(diagnosis: Diagnosis): DiagnosisVerdict {
@@ -276,14 +287,14 @@ export function CsvCard({ evidence, loading }: { evidence: CsvEvidence | null; l
                 {Object.entries(evidence.ispResults).map(([isp, result]) => (
                   <tr key={isp}>
                     <td>{isp}</td>
-                    <td className={result.toLowerCase() === "ok" ? "isp-ok" : "isp-restricted"}>
+                    <td className={statusClass(result)}>
                       {displayStatus(result, lang)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="isp-count">{t("card.csv.restrictedCount", { count: evidence.blockedOnIsps.length })}</p>
+            <p className="isp-count">{t("card.csv.restrictedCount", { count: evidence.blockedOnIsps.length, total: ISP_NAMES.length })}</p>
           </>
         )}
         {!loading && (
