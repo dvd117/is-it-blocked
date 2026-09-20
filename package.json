@@ -10,16 +10,17 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\""
   },
   "dependencies": {
-    "next": "16.2.6",
+    "next": "^16.3.5",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "undici": "^8.10.2"
   },
   "devDependencies": {
     "@types/node": "^20.19.41",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "^16.3.5",
     "tsx": "^4.21.0",
     "typescript": "^5"
   }
