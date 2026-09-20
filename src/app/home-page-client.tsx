@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { SiteHeader } from "@/features/check/components/site-header";
 import { SearchForm } from "@/features/check/components/search-form";
 import {
@@ -27,9 +27,17 @@ export default function HomePage() {
   const [query, setQuery] = useState("");
   const [state, setState] = useState<PageState>(initialPageState);
   const abortRef = useRef<AbortController | null>(null);
+  const comparisonAbortRef = useRef<AbortController | null>(null);
 
-  async function getKnownComparisonTargets(domain: string): Promise<RichComparisonTarget[]> {
-    const knownTestsRes = await fetch(`/api/known-tests?domain=${encodeURIComponent(domain)}`).catch(() => null);
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      comparisonAbortRef.current?.abort();
+    };
+  }, []);
+
+  async function getKnownComparisonTargets(domain: string, signal: AbortSignal): Promise<RichComparisonTarget[]> {
+    const knownTestsRes = await fetch(`/api/known-tests?domain=${encodeURIComponent(domain)}`, { signal }).catch(() => null);
     const knownData = knownTestsRes?.ok
       ? await knownTestsRes.json().catch(() => null) as { targets?: RichComparisonTarget[] } | null
       : null;
@@ -41,7 +49,8 @@ export default function HomePage() {
     input: string,
     browserSignal: BrowserSignal,
     failedCount: number,
-    totalCount: number
+    totalCount: number,
+    signal: AbortSignal,
   ): Promise<CheckResponse | null> {
     const params = new URLSearchParams({
       url: input,
@@ -50,15 +59,20 @@ export default function HomePage() {
       comparisonFailed: String(failedCount),
       comparisonTotal: String(totalCount),
     });
-    const response = await fetch(`/api/check?${params.toString()}`).catch(() => null);
+    const response = await fetch(`/api/check?${params.toString()}`, { signal }).catch(() => null);
     return response?.ok ? await response.json().catch(() => null) as CheckResponse | null : null;
   }
 
   async function runComparisonProbe(domain: string, input: string, signal: BrowserSignal) {
+    comparisonAbortRef.current?.abort();
+    const abort = new AbortController();
+    comparisonAbortRef.current = abort;
+
     setState((prev) => ({ ...prev, comparisonLoading: true, error: null }));
 
     try {
-      const targets = await getKnownComparisonTargets(domain);
+      const targets = await getKnownComparisonTargets(domain, abort.signal);
+      if (abort.signal.aborted) return;
       setState((prev) => ({ ...prev, comparisonTargets: targets }));
 
       if (!shouldRunComparisonProbe(true, targets.map((target) => target.domain))) {
@@ -75,11 +89,13 @@ export default function HomePage() {
 
       const probeTargets = targets.map((target) => `https://${target.domain}`);
       const { results, failedCount } = await probeMultiple(probeTargets);
+      if (abort.signal.aborted) return;
       const comparisonResults = targets.map((target) => ({
         domain: target.domain,
         signal: results.get(`https://${target.domain}`) ?? "inconclusive",
       }));
-      const updatedResult = await getUpdatedResultWithComparison(input, signal, failedCount, targets.length);
+      const updatedResult = await getUpdatedResultWithComparison(input, signal, failedCount, targets.length, abort.signal);
+      if (abort.signal.aborted) return;
 
       setState((prev) => ({
         ...prev,
@@ -92,6 +108,7 @@ export default function HomePage() {
         finalDiagnosis: updatedResult?.diagnosis ?? prev.finalDiagnosis,
       }));
     } catch {
+      if (abort.signal.aborted) return;
       setState((prev) => ({
         ...prev,
         comparisonLoading: false,
@@ -115,6 +132,7 @@ export default function HomePage() {
     }
 
     abortRef.current?.abort();
+    comparisonAbortRef.current?.abort();
     const abort = new AbortController();
     abortRef.current = abort;
 
@@ -205,7 +223,19 @@ export default function HomePage() {
       <main className="main-layout">
         <SearchForm query={query} loading={loading} onQueryChange={setQuery} onSubmit={handleSubmit} />
 
-        {error && <div className="error-banner">{error}</div>}
+        {error && (
+          <div className="error-banner">
+            {error}
+            <button
+              type="button"
+              className="error-banner-close"
+              aria-label="Dismiss"
+              onClick={() => setState((prev) => ({ ...prev, error: null }))}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         {showCards && (
           <>
