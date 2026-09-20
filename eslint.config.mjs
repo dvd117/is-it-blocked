@@ -13,6 +13,14 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // run.js launches Next's standalone output, which emits a CommonJS
+  // server.js. It has to `require` it — there is no ESM entry to import — so
+  // the TypeScript-oriented rule does not apply. Scoped to this one file
+  // rather than disabled globally.
+  {
+    files: ["run.js"],
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
 ]);
 
 export default eslintConfig;

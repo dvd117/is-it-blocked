@@ -1,0 +1,40 @@
+# Copied into new projects by kick-off. Three ecosystems, because each one
+# covers a blind spot the others do not.
+version: 2
+updates:
+  # One PR for the toolchain rather than five. Build tooling and its shared
+  # transitive deps move together; splitting them makes every bump a separate
+  # red build.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev-toolchain:
+        dependency-type: development
+        update-types: [minor, patch]
+      runtime:
+        dependency-type: production
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+    # @types/node tracks the RUNTIME, not npm's latest. If the Dockerfile runs
+    # node:22-alpine, types from the 26 line describe APIs that are not there
+    # and tsc still goes green — a failure with no signal until production.
+    # Raise this pin in the same commit that raises the runtime, never before.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  # The base image is otherwise the one dependency nothing watches: npm covers
+  # packages, github-actions covers CI, and node:22-alpine gets renewed by
+  # nobody. Alpine patch releases carry the CVE fixes.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

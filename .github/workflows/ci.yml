@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22 # keep in step with the Dockerfile's base image
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+      - run: npm audit --audit-level=moderate
+
+  # `npm run build` is not `docker build`. The runtime stage copies Next's
+  # standalone output plus run.js and data/; miss a file there and this job is
+  # the only thing between that and a container that dies on boot.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: is-it-blocked:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The image has its own HEALTHCHECK against /api/health, so let it answer.
+      # The app needs no env to boot.
+      - name: Boot the image and wait for its healthcheck
+        run: |
+          docker run -d --name ci-smoke is-it-blocked:ci
+          for i in $(seq 1 45); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' ci-smoke 2>/dev/null || echo starting)
+            [ "$status" = "healthy" ] && echo "healthy after ${i}s" && exit 0
+            [ "$status" = "unhealthy" ] && break
+            sleep 1
+          done
+          echo "::error::container never reported healthy"
+          docker logs ci-smoke
+          exit 1
+
+  # Dokploy watches a branch, not CI, so pointing it at the branch you push to
+  # means a red build ships as fast as a green one. It watches `production`;
+  # this job is the only thing that moves it. Day-to-day work still pushes to
+  # main.
+  #
+  # Fast-forward only, so a hand-push to production fails loudly rather than
+  # overwriting what is live.
+  ship:
+    needs: [verify, image]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Advance production to this commit
+        run: git push origin ${{ github.sha }}:refs/heads/production
