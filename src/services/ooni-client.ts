@@ -63,7 +63,8 @@ async function fetchMeasurements(input: string): Promise<OoniMeasurement[]> {
     }
 
     const data = (await response.json()) as OoniApiResponse;
-    return (data.results ?? []).map(toMeasurement);
+    if (!Array.isArray(data?.results)) return [];
+    return data.results.map(toMeasurement);
   } finally {
     clearTimeout(timeout);
   }

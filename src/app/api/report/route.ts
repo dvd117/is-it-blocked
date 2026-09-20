@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { saveReport } from "@/services/reports";
+import { clientKey, rateLimit } from "@/services/rate-limit";
+import { validateTargetInput } from "@/domain/target-validation";
 import type { ReportSubmission } from "@/domain/types";
 
 function validationError(message: string) {
@@ -7,6 +9,10 @@ function validationError(message: string) {
 }
 
 export async function POST(request: Request) {
+  if (!rateLimit(`report:${clientKey(request)}`, 5, 0.083)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   let payload: Partial<ReportSubmission> | null;
 
   try {
@@ -23,8 +29,21 @@ export async function POST(request: Request) {
     return validationError("Domain is required");
   }
 
+  const domainValidation = validateTargetInput(payload.domain.trim());
+  if (!domainValidation.valid) {
+    return validationError("Invalid domain");
+  }
+
   if (typeof payload.isp !== "string" || payload.isp.trim().length === 0) {
     return validationError("ISP is required");
+  }
+
+  if (payload.isp.length > 200) {
+    return validationError("ISP name is too long");
+  }
+
+  if (typeof payload.manualNotes === "string" && payload.manualNotes.length > 2000) {
+    return validationError("Notes are too long");
   }
 
   if (payload.consent !== true) {

@@ -3,6 +3,7 @@ import { lookupDomain } from "@/services/csv-evidence";
 import { queryOoni } from "@/services/ooni-client";
 import { getComparisonTargets } from "@/services/probe-targets";
 import { probeDomain } from "@/services/server-probe";
+import { clientKey, rateLimit } from "@/services/rate-limit";
 import { diagnose } from "@/domain/diagnosis";
 import { validateTargetInput } from "@/domain/target-validation";
 import type { CheckResponse, BrowserSignal, ComparisonEvidence } from "@/domain/types";
@@ -24,6 +25,10 @@ function parseComparisonCount(value: string | null): number | null {
 }
 
 export async function GET(request: NextRequest) {
+  if (!rateLimit(`check:${clientKey(request)}`, 30, 0.5)) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const url = request.nextUrl.searchParams.get("url");
 
   if (!url || url.trim().length === 0) {

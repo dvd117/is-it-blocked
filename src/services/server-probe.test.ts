@@ -3,9 +3,14 @@ import assert from "node:assert";
 import dns from "dns/promises";
 import { probeDomain } from "./server-probe.ts";
 
+function rejectWith(message: string) {
+  return () => Promise.reject(new Error(message));
+}
+
 describe("probeDomain", () => {
   test("DNS resolution failure returns expected result", async () => {
-    mock.method(dns, "resolve4", () => Promise.reject(new Error("ENOTFOUND")));
+    mock.method(dns, "resolve4", rejectWith("ENOTFOUND"));
+    mock.method(dns, "resolve6", rejectWith("ENOTFOUND"));
     const result = await probeDomain("this-domain-definitely-does-not-exist.local");
     assert.strictEqual(result.reachable, false);
     assert.strictEqual(result.dnsResolved, false);
@@ -18,12 +23,13 @@ describe("probeDomain", () => {
 
   test("HTTP request success", async () => {
     mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
+    mock.method(dns, "resolve6", rejectWith("ENODATA"));
     const fetchMock = mock.method(global, "fetch", async () => ({
       status: 200,
     } as Response));
 
     const result = await probeDomain("example.com");
-    
+
     assert.strictEqual(fetchMock.mock.callCount(), 1);
     const fetchCall = fetchMock.mock.calls[0];
     assert.strictEqual(fetchCall.arguments[0], "https://example.com");
@@ -42,6 +48,7 @@ describe("probeDomain", () => {
 
   test("HTTP error (4xx/5xx)", async () => {
     mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
+    mock.method(dns, "resolve6", rejectWith("ENODATA"));
     mock.method(global, "fetch", async () => ({
       status: 503,
     } as Response));
@@ -55,6 +62,7 @@ describe("probeDomain", () => {
 
   test("Network error after DNS success", async () => {
     mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
+    mock.method(dns, "resolve6", rejectWith("ENODATA"));
     mock.method(global, "fetch", () => Promise.reject(new Error("ECONNREFUSED")));
 
     const result = await probeDomain("example.com");
@@ -66,6 +74,7 @@ describe("probeDomain", () => {
 
   test("HTTP request timeout", async () => {
     mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
+    mock.method(dns, "resolve6", rejectWith("ENODATA"));
     mock.method(global, "fetch", () => {
       const error = new Error("The operation was aborted");
       error.name = "AbortError";
@@ -76,6 +85,80 @@ describe("probeDomain", () => {
     assert.strictEqual(result.reachable, false);
     assert.strictEqual(result.httpStatus, null);
     assert.strictEqual(result.error, "HTTP request timed out after 10s");
+    mock.restoreAll();
+  });
+
+  test("IPv4 private address (RFC1918) is rejected", async () => {
+    mock.method(dns, "resolve4", () => Promise.resolve(["10.0.0.1"]));
+    mock.method(dns, "resolve6", rejectWith("ENODATA"));
+    const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+    const result = await probeDomain("evil.example");
+
+    assert.strictEqual(fetchMock.mock.callCount(), 0);
+    assert.strictEqual(result.reachable, false);
+    assert.strictEqual(result.dnsResolved, false);
+    assert.strictEqual(result.error, "Domain resolves to a private address");
+    mock.restoreAll();
+  });
+
+  test("IPv4 cloud metadata address is rejected", async () => {
+    mock.method(dns, "resolve4", () => Promise.resolve(["169.254.169.254"]));
+    mock.method(dns, "resolve6", rejectWith("ENODATA"));
+    const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+    const result = await probeDomain("evil.example");
+
+    assert.strictEqual(fetchMock.mock.callCount(), 0);
+    assert.strictEqual(result.error, "Domain resolves to a private address");
+    mock.restoreAll();
+  });
+
+  test("IPv6 loopback is rejected", async () => {
+    mock.method(dns, "resolve4", rejectWith("ENODATA"));
+    mock.method(dns, "resolve6", () => Promise.resolve(["::1"]));
+    const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+    const result = await probeDomain("evil.example");
+
+    assert.strictEqual(fetchMock.mock.callCount(), 0);
+    assert.strictEqual(result.error, "Domain resolves to a private address");
+    mock.restoreAll();
+  });
+
+  test("IPv6 link-local is rejected", async () => {
+    mock.method(dns, "resolve4", rejectWith("ENODATA"));
+    mock.method(dns, "resolve6", () => Promise.resolve(["fe80::1"]));
+    const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+    const result = await probeDomain("evil.example");
+
+    assert.strictEqual(fetchMock.mock.callCount(), 0);
+    assert.strictEqual(result.error, "Domain resolves to a private address");
+    mock.restoreAll();
+  });
+
+  test("IPv4-mapped IPv6 private address is rejected", async () => {
+    mock.method(dns, "resolve4", rejectWith("ENODATA"));
+    mock.method(dns, "resolve6", () => Promise.resolve(["::ffff:127.0.0.1"]));
+    const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+    const result = await probeDomain("evil.example");
+
+    assert.strictEqual(fetchMock.mock.callCount(), 0);
+    assert.strictEqual(result.error, "Domain resolves to a private address");
+    mock.restoreAll();
+  });
+
+  test("mixed v4 (public) + v6 (private) is rejected — any private blocks", async () => {
+    mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
+    mock.method(dns, "resolve6", () => Promise.resolve(["::1"]));
+    const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+    const result = await probeDomain("evil.example");
+
+    assert.strictEqual(fetchMock.mock.callCount(), 0);
+    assert.strictEqual(result.error, "Domain resolves to a private address");
     mock.restoreAll();
   });
 });
