@@ -16,11 +16,15 @@ ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
-COPY --from=build /app/public ./public
-COPY --from=build /app/data ./data
-COPY run.js ./
+RUN addgroup -S app && adduser -S app -G app
+
+COPY --from=build --chown=app:app /app/.next/standalone ./
+COPY --from=build --chown=app:app /app/.next/static ./.next/static
+COPY --from=build --chown=app:app /app/public ./public
+COPY --from=build --chown=app:app /app/data ./data
+COPY --chown=app:app run.js ./
+
+USER app
 
 EXPOSE 3000
 
