@@ -94,7 +94,7 @@ export async function POST(request: Request) {
 
   try {
     await saveReport({
-      domain: payload.domain,
+      domain: domainValidation.domain,
       isp: payload.isp,
       browserResult: payload.browserResult,
       diagnosis: payload.diagnosis,

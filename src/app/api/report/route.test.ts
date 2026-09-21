@@ -41,3 +41,26 @@ test("report API rejects unbounded fields before writing them", async () => {
 
   assert.equal(appendFileMock.mock.callCount(), 0);
 });
+
+test("report API stores the validated hostname, not the raw URL input", async () => {
+  const appendFileMock = mock.method(fs, "appendFileSync", () => undefined);
+  mock.method(fs, "mkdirSync", () => undefined);
+
+  try {
+    const response = await POST(new Request("http://localhost/api/report", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "true-client-ip": "192.0.2.50",
+      },
+      body: JSON.stringify({ ...baseReport, domain: `https://example.com/${"a".repeat(10_000)}` }),
+    }));
+
+    assert.equal(response.status, 200);
+    assert.equal(appendFileMock.mock.callCount(), 1);
+    const written = JSON.parse(String(appendFileMock.mock.calls[0].arguments[1]));
+    assert.equal(written.domain, "example.com");
+  } finally {
+    mock.restoreAll();
+  }
+});
