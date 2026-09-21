@@ -1,5 +1,6 @@
 import dns from "dns/promises";
-import type { LookupFunction } from "net";
+import { isIP } from "node:net";
+import type { LookupFunction } from "node:net";
 import { Agent } from "undici";
 import type { ServerProbeResult } from "@/domain/types";
 
@@ -11,31 +12,118 @@ function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
 
-function isPrivateIpv4(ip: string): boolean {
-  const parts = ip.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((p) => !Number.isInteger(p) || p < 0 || p > 255)) {
-    return true;
+function parseIpv4(ip: string): number[] | null {
+  const rawParts = ip.split(".");
+  if (rawParts.length !== 4 || rawParts.some((part) => !/^\d{1,3}$/.test(part))) {
+    return null;
   }
-  const [a, b] = parts;
+  const parts = rawParts.map(Number);
+  if (parts.some((part) => part > 255)) return null;
+  return parts;
+}
+
+function isPrivateIpv4Parts(parts: readonly number[]): boolean {
+  const [a, b, c] = parts;
   return (
     a === 0 ||
     a === 10 ||
     a === 127 ||
     (a === 169 && b === 254) ||
     (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 0 && c === 0) ||
+    (a === 192 && b === 0 && c === 2) ||
     (a === 192 && b === 168) ||
+    (a === 198 && b >= 18 && b <= 19) ||
+    (a === 198 && b === 51 && c === 100) ||
+    (a === 203 && b === 0 && c === 113) ||
     (a === 100 && b >= 64 && b <= 127) ||
     a >= 224
   );
 }
 
+function isPrivateIpv4(ip: string): boolean {
+  const parts = parseIpv4(ip);
+  return parts === null ? true : isPrivateIpv4Parts(parts);
+}
+
+function isPrivateEmbeddedIpv4(high: number, low: number): boolean {
+  return isPrivateIpv4Parts([
+    high >> 8,
+    high & 0xff,
+    low >> 8,
+    low & 0xff,
+  ]);
+}
+
+function parseIpv6(ip: string): number[] | null {
+  if (isIP(ip) !== 6) return null;
+
+  const sections = ip.toLowerCase().split("::");
+  if (sections.length > 2) return null;
+
+  const parseSection = (section: string): number[] | null => {
+    if (!section) return [];
+    const parts = section.split(":");
+    const groups: number[] = [];
+    for (const part of parts) {
+      if (part.includes(".")) {
+        const ipv4 = parseIpv4(part);
+        if (!ipv4 || part !== parts.at(-1)) return null;
+        groups.push((ipv4[0] << 8) | ipv4[1], (ipv4[2] << 8) | ipv4[3]);
+        continue;
+      }
+      if (!/^[0-9a-f]{1,4}$/.test(part)) return null;
+      groups.push(Number.parseInt(part, 16));
+    }
+    return groups;
+  };
+
+  const head = parseSection(sections[0]);
+  const tail = sections.length === 2 ? parseSection(sections[1]) : [];
+  if (!head || !tail) return null;
+
+  if (sections.length === 1) {
+    return head.length === 8 ? head : null;
+  }
+
+  const omitted = 8 - head.length - tail.length;
+  return omitted > 0 ? [...head, ...Array.from({ length: omitted }, () => 0), ...tail] : null;
+}
+
 function isPrivateIpv6(ip: string): boolean {
-  const normalized = ip.toLowerCase();
-  if (normalized === "::1" || normalized === "::") return true;
-  if (/^fe[89ab][0-9a-f]?:/.test(normalized)) return true;
-  if (/^f[cd][0-9a-f]{2}:/.test(normalized)) return true;
-  const v4Match = normalized.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (v4Match) return isPrivateIpv4(v4Match[1]);
+  const groups = parseIpv6(ip);
+  if (!groups) return true;
+
+  const [first, second, third, fourth, fifth, sixth, seventh, eighth] = groups;
+  const allZeroThroughSixth = groups.slice(0, 6).every((group) => group === 0);
+
+  // Unspecified, loopback, IPv4-compatible, and IPv4-mapped addresses.
+  if (allZeroThroughSixth) return true;
+  if (groups.slice(0, 5).every((group) => group === 0) && sixth === 0xffff) {
+    return isPrivateEmbeddedIpv4(seventh, eighth);
+  }
+
+  // Unique-local, link-local, deprecated site-local, and multicast ranges.
+  if ((first & 0xfe00) === 0xfc00) return true;
+  if ((first & 0xffc0) === 0xfe80 || (first & 0xffc0) === 0xfec0) return true;
+  if ((first & 0xff00) === 0xff00) return true;
+
+  // Documentation addresses are not publicly reachable targets.
+  if (first === 0x2001 && second === 0x0db8) return true;
+
+  // Only reject NAT64 and 6to4 addresses when their embedded IPv4 is private.
+  if (
+    first === 0x0064 &&
+    second === 0xff9b &&
+    third === 0 &&
+    fourth === 0 &&
+    fifth === 0 &&
+    sixth === 0
+  ) {
+    return isPrivateEmbeddedIpv4(seventh, eighth);
+  }
+  if (first === 0x2002) return isPrivateEmbeddedIpv4(second, third);
+
   return false;
 }
 
@@ -107,6 +195,7 @@ export async function probeDomain(domain: string): Promise<ServerProbeResult> {
   try {
     const response = await fetch(`https://${domain}`, {
       method: "HEAD",
+      redirect: "manual",
       signal: controller.signal,
       dispatcher,
     } as RequestInit & { dispatcher: Agent });
