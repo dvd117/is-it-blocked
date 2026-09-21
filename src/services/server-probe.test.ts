@@ -46,6 +46,25 @@ describe("probeDomain", () => {
     mock.restoreAll();
   });
 
+  test("does not follow redirects to private IP literals", async () => {
+    mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
+    mock.method(dns, "resolve6", rejectWith("ENODATA"));
+    const fetchMock = mock.method(global, "fetch", async (_input, init) => {
+      assert.strictEqual(init?.redirect, "manual");
+      return {
+        status: 302,
+        headers: new Headers({ Location: "http://127.0.0.1/" }),
+      } as Response;
+    });
+
+    const result = await probeDomain("example.com");
+
+    assert.strictEqual(fetchMock.mock.callCount(), 1);
+    assert.strictEqual(result.reachable, true);
+    assert.strictEqual(result.httpStatus, 302);
+    mock.restoreAll();
+  });
+
   test("HTTP error (4xx/5xx)", async () => {
     mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
     mock.method(dns, "resolve6", rejectWith("ENODATA"));
@@ -149,6 +168,55 @@ describe("probeDomain", () => {
     assert.strictEqual(result.error, "Domain resolves to a private address");
     mock.restoreAll();
   });
+
+  const ipv4PrivateAddressCases = [
+    ["IPv4 special-purpose range", "192.0.0.1"],
+    ["IPv4 benchmarking range", "198.18.0.1"],
+    ["IPv4 documentation range 1", "192.0.2.1"],
+    ["IPv4 documentation range 2", "198.51.100.1"],
+    ["IPv4 documentation range 3", "203.0.113.1"],
+    ["IPv4 multicast range", "224.0.0.1"],
+    ["IPv4 reserved range", "240.0.0.1"],
+  ] as const;
+
+  for (const [label, address] of ipv4PrivateAddressCases) {
+    test(`${label} is rejected`, async () => {
+      mock.method(dns, "resolve4", () => Promise.resolve([address]));
+      mock.method(dns, "resolve6", rejectWith("ENODATA"));
+      const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+      const result = await probeDomain("evil.example");
+
+      assert.strictEqual(fetchMock.mock.callCount(), 0);
+      assert.strictEqual(result.error, "Domain resolves to a private address");
+      mock.restoreAll();
+    });
+  }
+
+  const ipv6PrivateAddressCases = [
+    ["IPv4-mapped hexadecimal loopback", "::ffff:7f00:1"],
+    ["IPv4-compatible dotted loopback", "::127.0.0.1"],
+    ["IPv4-compatible hexadecimal loopback", "::7f00:1"],
+    ["NAT64 private loopback", "64:ff9b::7f00:1"],
+    ["6to4 private loopback", "2002:7f00:1::"],
+    ["multicast", "ff02::1"],
+    ["unique-local edge", "fd12:3456:789a:1:2:3:4:5"],
+    ["link-local edge", "fe80:0:0:0:0:ffff:c000:201"],
+  ] as const;
+
+  for (const [label, address] of ipv6PrivateAddressCases) {
+    test(`${label} is rejected`, async () => {
+      mock.method(dns, "resolve4", rejectWith("ENODATA"));
+      mock.method(dns, "resolve6", () => Promise.resolve([address]));
+      const fetchMock = mock.method(global, "fetch", async () => ({ status: 200 } as Response));
+
+      const result = await probeDomain("evil.example");
+
+      assert.strictEqual(fetchMock.mock.callCount(), 0);
+      assert.strictEqual(result.error, "Domain resolves to a private address");
+      mock.restoreAll();
+    });
+  }
 
   test("mixed v4 (public) + v6 (private) is rejected — any private blocks", async () => {
     mock.method(dns, "resolve4", () => Promise.resolve(["1.2.3.4"]));
