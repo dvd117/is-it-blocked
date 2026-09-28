@@ -51,8 +51,8 @@ jobs:
           title=$(gh pr view "$pr" --repo "$REPO" --json title --jq '.title')
 
           # The trigger already filtered on the actor; the merge should not rely
-          # on that alone.
-          if [ "$author" != "dependabot[bot]" ]; then
+          # on that alone. gh reports bot authors as "app/<name>", not "<name>[bot]".
+          if [ "$author" != "app/dependabot" ]; then
             echo "PR #$pr is by $author, not dependabot. Leaving it."
             exit 0
           fi
