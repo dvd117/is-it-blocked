@@ -1,0 +1,7 @@
+[
+  {
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "expires": "2026-11-05",
+    "reason": "braces has no patched release; reached only through eslint-config-next (dev tooling, lint time), never at runtime."
+  }
+]
