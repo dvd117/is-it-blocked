@@ -24,6 +24,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write  # gh workflow run, see the end of the merge step
 
 jobs:
   merge:
@@ -98,3 +99,8 @@ jobs:
           fi
 
           gh pr merge "$pr" --repo "$REPO" --squash --delete-branch
+
+          # A push made with GITHUB_TOKEN starts no workflow, so CI and its ship
+          # job would never see this merge and production would fall behind
+          # main. workflow_dispatch is the one event GITHUB_TOKEN may trigger.
+          gh workflow run ci.yml --repo "$REPO" --ref main
