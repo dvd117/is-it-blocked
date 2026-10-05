@@ -26,7 +26,9 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      - run: npm audit --audit-level=moderate
+      - uses: dvd117/ci/audit-gate@v1
+        with:
+          audit-level: moderate
 
   # `npm run build` is not `docker build`. The runtime stage copies Next's
   # standalone output plus run.js and data/; miss a file there and this job is
