@@ -10,10 +10,10 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\""
   },
   "dependencies": {
-    "next": "^16.4.1",
+    "next": "^16.4.2",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "undici": "^8.12.1"
+    "undici": "^8.12.3"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
